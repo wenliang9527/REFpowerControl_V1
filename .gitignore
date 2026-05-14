@@ -1,0 +1,44 @@
+# Build artifacts
+*.o
+*.d
+*.crf
+*.lst
+*.map
+*.htm
+*.axf
+*.hex
+*.bin
+*.elf
+*.lnp
+
+# Keil MDK specific
+*.build_log.htm
+*.dep
+*.lnp
+*.sct
+
+# IDE specific
+*.uvguix.*
+*.uvoptx
+*.uvprojx
+*.uvmpw
+*.uvlock
+
+# Keil backup files
+*.bak
+
+# JLink logs
+*.txt
+
+# Documentation (if you want to exclude docs)
+# docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.swp
+*~
