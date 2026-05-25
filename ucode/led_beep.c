@@ -39,6 +39,11 @@ static u8 beep_current_count = 0;
 /** 蜂鸣器状态: 0=停止, 1=鸣响中, 2=间隔中 */
 static u8 beep_state = 0;
 
+static uint8_t s_power_on_state = 0;
+static uint8_t s_power_blink_active = 0;
+static u32 s_power_blink_timer = 0;
+#define POWER_BLINK_PERIOD  5000u
+
 /**
   * @brief  LED闪烁线程处理函数
   * @note   在定时器中断中调用, 处理LED1周期闪烁(每LED1_FLASH_TIME翻转一次)
@@ -52,6 +57,18 @@ void LED_Thread(void)
     {
         LED_1_Reversal;
         TMR_LED1_timer = 0;
+    }
+
+    if (s_power_blink_active) {
+        s_power_blink_timer++;
+        if (s_power_blink_timer >= POWER_BLINK_PERIOD) {
+            s_power_blink_timer = 0;
+            if (s_power_on_state) {
+                gpio_bits_toggle(LED_POWER_C_GPIO_PORT, LED_POWER_C_PIN);
+            } else {
+                gpio_bits_toggle(LED2_GPIO_PORT, LED2_PIN);
+            }
+        }
     }
     
     BEEP_Process();
@@ -229,4 +246,23 @@ void LED_PowerIndicator_Set(uint8_t power_on)
         gpio_bits_set(LED_POWER_C_GPIO_PORT, LED_POWER_C_PIN);
         gpio_bits_reset(LED2_GPIO_PORT, LED2_PIN);
     }
+    s_power_on_state = power_on;
+}
+
+void LED_PowerIndicator_BlinkStart(void)
+{
+    s_power_blink_active = 1;
+    s_power_blink_timer = 0;
+}
+
+void LED_PowerIndicator_BlinkStop(void)
+{
+    s_power_blink_active = 0;
+    s_power_blink_timer = 0;
+    LED_PowerIndicator_Set(s_power_on_state);
+}
+
+uint8_t LED_PowerIndicator_GetState(void)
+{
+    return s_power_on_state;
 }

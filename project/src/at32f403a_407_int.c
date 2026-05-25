@@ -32,7 +32,7 @@
 #include "led_beep.h"
 #include "touch_key.h"
 #include "sensor_input.h"
-#include "valve_control.h"
+#include "fluid_flow_interlock.h"
 /* add user code end private includes */
 
 /* private typedef -----------------------------------------------------------*/
@@ -282,6 +282,7 @@ void TMR1_OVF_TMR10_IRQHandler(void)
     /* add user code begin TMR1_TMR_OVF_FLAG */
     /* clear flag */
     tmr_flag_clear(TMR1, TMR_OVF_FLAG);
+    LED_Thread();
     /* add user code end TMR1_TMR_OVF_FLAG */
   }
 
@@ -333,7 +334,6 @@ void TMR3_GLOBAL_IRQHandler(void)
     /* clear flag */
     tmr_flag_clear(TMR3, TMR_OVF_FLAG);
     DigitTube_Scan();
-    LED_Thread();
     /* add user code end TMR3_TMR_OVF_FLAG */
   }
 
@@ -361,7 +361,6 @@ void TMR4_GLOBAL_IRQHandler(void)
     tmr_flag_clear(TMR4, TMR_OVF_FLAG);
     TouchKey_Scan();
     SensorInput_Scan();
-    ValveControl_Tmr4Tick();  /* 注水阀控制处理 */
     /* add user code end TMR4_TMR_OVF_FLAG */
   }
 

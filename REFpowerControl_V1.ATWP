@@ -92,18 +92,19 @@
         </USART1_TX>
     </DMA>
     <NVIC>
+        <PriorityGroup>NVIC_PRIORITY_GROUP_2</PriorityGroup>
         <ShowType>0</ShowType>
-        <SysTick_Handler>1;15;0;0;0;1</SysTick_Handler>
+        <SysTick_Handler>1;0;0;0;0;1</SysTick_Handler>
         <FLASH_IRQHandler>0;0;0;0;0;0</FLASH_IRQHandler>
         <CRM_IRQHandler>0;0;0;0;0;0</CRM_IRQHandler>
-        <DMA1_Channel1_IRQHandler>1;0;0;0;0;1</DMA1_Channel1_IRQHandler>
-        <DMA1_Channel2_IRQHandler>1;0;0;0;0;1</DMA1_Channel2_IRQHandler>
+        <DMA1_Channel1_IRQHandler>1;0;1;0;0;1</DMA1_Channel1_IRQHandler>
+        <DMA1_Channel2_IRQHandler>1;0;1;0;0;1</DMA1_Channel2_IRQHandler>
         <TMR1_BRK_TMR9_IRQHandler>0;0;0;0;0;0</TMR1_BRK_TMR9_IRQHandler>
-        <TMR1_OVF_TMR10_IRQHandler>1;0;0;0;0;1</TMR1_OVF_TMR10_IRQHandler>
+        <TMR1_OVF_TMR10_IRQHandler>1;0;2;0;0;1</TMR1_OVF_TMR10_IRQHandler>
         <TMR1_TRG_HALL_TMR11_IRQHandler>0;0;0;0;0;0</TMR1_TRG_HALL_TMR11_IRQHandler>
         <TMR1_CH_IRQHandler>0;0;0;0;0;0</TMR1_CH_IRQHandler>
-        <TMR2_GLOBAL_IRQHandler>1;0;0;0;0;1</TMR2_GLOBAL_IRQHandler>
-        <TMR3_GLOBAL_IRQHandler>1;0;0;0;0;1</TMR3_GLOBAL_IRQHandler>
+        <TMR2_GLOBAL_IRQHandler>1;0;1;0;0;1</TMR2_GLOBAL_IRQHandler>
+        <TMR3_GLOBAL_IRQHandler>1;1;3;0;0;1</TMR3_GLOBAL_IRQHandler>
         <TMR4_GLOBAL_IRQHandler>1;0;0;0;0;1</TMR4_GLOBAL_IRQHandler>
         <USART1_IRQHandler>1;0;0;0;0;1</USART1_IRQHandler>
     </NVIC>
@@ -205,6 +206,7 @@
             <Parameters name="Label" value="SER_IN_1"/>
         </Signal>
         <Signal SignalName="GPIO_Input" PinName="PD13">
+            <Parameters name="GPIO_PullType_Set" value="GPIO_PULL_UP"/>
             <Parameters name="Label" value="SER_IN_2"/>
         </Signal>
         <Signal SignalName="GPIO_Input" PinName="PD14">
@@ -217,15 +219,19 @@
             <Parameters name="Label" value="SW_VALVE_2"/>
         </Signal>
         <Signal SignalName="GPIO_Input" PinName="PC7">
+            <Parameters name="GPIO_PullType_Set" value="GPIO_PULL_UP"/>
             <Parameters name="Label" value="TOUCH_4"/>
         </Signal>
         <Signal SignalName="GPIO_Input" PinName="PC8">
+            <Parameters name="GPIO_PullType_Set" value="GPIO_PULL_UP"/>
             <Parameters name="Label" value="TOUCH_3"/>
         </Signal>
         <Signal SignalName="GPIO_Input" PinName="PC9">
+            <Parameters name="GPIO_PullType_Set" value="GPIO_PULL_UP"/>
             <Parameters name="Label" value="TOUCH_2"/>
         </Signal>
         <Signal SignalName="GPIO_Input" PinName="PA8">
+            <Parameters name="GPIO_PullType_Set" value="GPIO_PULL_UP"/>
             <Parameters name="Label" value="TOUCH_1"/>
         </Signal>
         <Signal SignalName="GPIO_Output" PinName="PA11">

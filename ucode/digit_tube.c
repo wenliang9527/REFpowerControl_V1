@@ -66,8 +66,9 @@ static volatile uint8_t  g_led_q2_state = 0;
 volatile uint32_t g_scan_counter = 0;
 
 static volatile uint8_t g_display_error = 0;
-static uint8_t scan_pos = 0;
-static uint8_t g_display_digits = 3;
+static volatile uint8_t scan_pos = 0;
+static volatile uint8_t g_display_digits = 3;
+static volatile uint8_t g_force_leading_zero = 0;
 
 void DigitTube_SyncToGlobal(void)
 {
@@ -77,10 +78,13 @@ void DigitTube_SyncToGlobal(void)
 
 void DigitTube_SyncFromGlobal(void)
 {
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
     g_display_value = (uint16_t)g_sensor_data.temperature.display_value1;
     g_temp_unit = g_sensor_data.temperature.display_unit;
     g_display_digits = 2;
     scan_pos = 0;
+    __set_PRIMASK(primask);
 }
 
 void DigitTube_SetDisplayDigits(uint8_t digits)
@@ -101,58 +105,82 @@ void DigitTube_SetLEDState(uint8_t q1, uint8_t q2)
     g_led_q2_state = q2;
 }
 
+static uint8_t pin_to_index(uint16_t pin)
+{
+    uint8_t idx = 0;
+    while (pin > 1u) { pin >>= 1u; idx++; }
+    return idx;
+}
+
 static void all_pins_off(void)
 {
-    gpio_init_type gpio_init_struct;
     uint8_t i;
-    
-    gpio_default_para_init(&gpio_init_struct);
-    gpio_init_struct.gpio_mode = GPIO_MODE_INPUT;
-    gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
-    
     for (i = 0; i < 6; i++) {
-        gpio_init_struct.gpio_pins = tube_pin[i];
-        gpio_init(tube_gpio[i], &gpio_init_struct);
+        uint8_t idx = pin_to_index(tube_pin[i]);
+        if (idx < 8u) {
+            tube_gpio[i]->cfglr &= ~(0x0Fu << (idx * 4u));
+        } else {
+            tube_gpio[i]->cfghr &= ~(0x0Fu << ((idx - 8u) * 4u));
+        }
     }
 }
 
 static void light_seg(uint8_t high_pin, uint8_t low_pin)
 {
-    gpio_init_type gpio_init_struct;
     uint8_t hp, lp;
-    
+    uint8_t idx;
+
     if (high_pin < 1 || high_pin > 6 || low_pin < 1 || low_pin > 6) {
         all_pins_off();
         return;
     }
-    
+
     hp = high_pin - 1;
     lp = low_pin - 1;
-    
+
     all_pins_off();
-    
+
+    idx = pin_to_index(tube_pin[hp]);
+    if (idx < 8u) {
+        tube_gpio[hp]->cfglr = (tube_gpio[hp]->cfglr & ~(0x0Fu << (idx * 4u)))
+                              | (0x02u << (idx * 4u));
+    } else {
+        tube_gpio[hp]->cfghr = (tube_gpio[hp]->cfghr & ~(0x0Fu << ((idx - 8u) * 4u)))
+                              | (0x02u << ((idx - 8u) * 4u));
+    }
+    tube_gpio[hp]->scr = tube_pin[hp];
+
+    idx = pin_to_index(tube_pin[lp]);
+    if (idx < 8u) {
+        tube_gpio[lp]->cfglr = (tube_gpio[lp]->cfglr & ~(0x0Fu << (idx * 4u)))
+                              | (0x02u << (idx * 4u));
+    } else {
+        tube_gpio[lp]->cfghr = (tube_gpio[lp]->cfghr & ~(0x0Fu << ((idx - 8u) * 4u)))
+                              | (0x02u << ((idx - 8u) * 4u));
+    }
+    tube_gpio[lp]->clr = tube_pin[lp];
+}
+
+static void tube_gpio_init(void)
+{
+    gpio_init_type gpio_init_struct;
+    uint8_t i;
+
+    for (i = 0; i < 6; i++) {
+        crm_periph_clock_enable(tube_clock[i], TRUE);
+    }
+
     gpio_default_para_init(&gpio_init_struct);
     gpio_init_struct.gpio_mode = GPIO_MODE_OUTPUT;
     gpio_init_struct.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
     gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_MODERATE;
     gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
-    gpio_init_struct.gpio_pins = tube_pin[hp];
-    gpio_init(tube_gpio[hp], &gpio_init_struct);
-    gpio_bits_set(tube_gpio[hp], tube_pin[hp]);
-    
-    gpio_init_struct.gpio_pins = tube_pin[lp];
-    gpio_init(tube_gpio[lp], &gpio_init_struct);
-    gpio_bits_reset(tube_gpio[lp], tube_pin[lp]);
-}
 
-static void tube_gpio_init(void)
-{
-    uint8_t i;
-    
     for (i = 0; i < 6; i++) {
-        crm_periph_clock_enable(tube_clock[i], TRUE);
+        gpio_init_struct.gpio_pins = tube_pin[i];
+        gpio_init(tube_gpio[i], &gpio_init_struct);
     }
-    
+
     all_pins_off();
 }
 
@@ -265,7 +293,7 @@ void DigitTube_Scan(void)
             default: num = 0; break;
         }
         
-        if ((num == 0 && digit == 0 && g_display_value < 10)) {
+        if (!g_force_leading_zero && (num == 0 && digit == 0 && g_display_value < 10)) {
             all_pins_off();
         } else {
             code = seg_code[num];
@@ -288,8 +316,9 @@ void DigitTube_Scan(void)
             default: num = 0;
         }
         
-        if ((num == 0 && digit == 0 && g_display_value < 100) ||
-            (num == 0 && digit == 1 && g_display_value < 10)) {
+        if (!g_force_leading_zero &&
+            ((num == 0 && digit == 0 && g_display_value < 100) ||
+             (num == 0 && digit == 1 && g_display_value < 10))) {
             all_pins_off();
         } else {
             code = seg_code[num];
@@ -311,30 +340,45 @@ void DigitTube_Scan(void)
 
 uint8_t DigitTube_DisplayInt(int32_t value)
 {
+    uint32_t primask;
     if (value < 0 || value > 999) {
         g_display_error = 1;
         return 1;
     }
-    
+
+    primask = __get_PRIMASK();
+    __disable_irq();
     g_display_error = 0;
     g_display_value = (uint16_t)value;
+    __set_PRIMASK(primask);
     return 0;
 }
 
 void DigitTube_SetValue(uint16_t value)
 {
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
     g_display_error = 0;
     g_display_value = value > 999 ? 999 : value;
+    __set_PRIMASK(primask);
 }
 
 void DigitTube_Clear(void)
 {
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
     g_display_value = 0;
     g_display_error = 0;
+    __set_PRIMASK(primask);
 }
 
 void DigitTube_ToggleUnit(void)
 {
+    uint32_t primask;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+
     if (g_temp_unit == 0) {
         g_display_value = (uint16_t)((uint32_t)g_display_value * 9 / 5 + 32);
         g_temp_unit = 1;
@@ -350,6 +394,8 @@ void DigitTube_ToggleUnit(void)
         g_led_q1_state = 1;
         g_led_q2_state = 0;
     }
+
+    __set_PRIMASK(primask);
 }
 
 void DigitTube_SetLED(uint8_t led_id, uint8_t state)
@@ -368,15 +414,19 @@ uint8_t DigitTube_GetUnit(void)
 
 uint8_t DigitTube_DisplayTemp(int32_t value, uint8_t unit)
 {
+    uint32_t primask;
+
     if (value < 0 || value > 999) {
         g_display_error = 1;
         return 1;
     }
-    
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+
     g_display_error = 0;
-    
     g_display_value = (uint16_t)value;
-    
+
     if (unit == 0) {
         g_temp_unit = 0;
         g_led_q1_state = 1;
@@ -386,7 +436,9 @@ uint8_t DigitTube_DisplayTemp(int32_t value, uint8_t unit)
         g_led_q1_state = 0;
         g_led_q2_state = 1;
     }
-    
+
+    __set_PRIMASK(primask);
+
     return 0;
 }
 
@@ -408,4 +460,32 @@ uint32_t DigitTube_GetScanCounter(void)
 void DigitTube_ResetScanCounter(void)
 {
     g_scan_counter = 0;
+}
+
+void DigitTube_DisplayErrorCode(uint16_t code)
+{
+    uint32_t primask;
+
+    if (code > 999) {
+        code = 999;
+    }
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    g_display_error = 0;
+    g_display_value = (uint16_t)code;
+    g_display_digits = 3;
+    g_force_leading_zero = 1;
+    __set_PRIMASK(primask);
+}
+
+void DigitTube_ClearErrorCode(void)
+{
+    uint32_t primask;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    g_force_leading_zero = 0;
+    g_display_digits = 2;
+    __set_PRIMASK(primask);
 }

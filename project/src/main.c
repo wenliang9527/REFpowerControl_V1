@@ -35,7 +35,7 @@
 
 /* private includes ----------------------------------------------------------*/
 /* add user code begin private includes */
-#include "pid_control.h"
+#include "temp_control.h"
 #include "device_control.h"
 #include "sensor_input.h"
 #include "fluid_flow_interlock.h"
@@ -63,9 +63,13 @@
 
 /* private variables ---------------------------------------------------------*/
 /* add user code begin private variables */
-static PID_Controller_t pid_controller;
+static TempController_t temp_controller;
 static DS18B20_MultiDeviceTypeDef *ds_list[DS_TempNumber];
 static float current_temp = 0.0f;
+static uint32_t ds18b20_last_tick = 0;
+#define DS18B20_UPDATE_INTERVAL_MS  2000u
+#define DS18B20_SCAN_TICKS_PER_MS   1u
+#define DS18B20_UPDATE_INTERVAL_TICKS  (DS18B20_UPDATE_INTERVAL_MS * DS18B20_SCAN_TICKS_PER_MS)
 /* add user code end private variables */
 
 /* private function prototypes --------------------------------------------*/
@@ -106,9 +110,10 @@ int main(void)
      void wk_delay_ms(uint32_t delay); */
   wk_timebase_init();
 
+ 
+
   /* init gpio function. */
   wk_gpio_config();
-
   /* init dma1 channel1 */
   wk_dma1_channel1_init();
   /* config dma channel transfer parameter */
@@ -157,13 +162,13 @@ int main(void)
   LED_PowerIndicator_Set(0);
 
   DigitTube_Init();
-  PID_Init(&pid_controller);
+  TempControl_Init(&temp_controller);
 
   ds_list[DSB1] = &DSTemp[DSB1];
   ds_list[DSB2] = &DSTemp[DSB2];
   DS18B20_Init(ds_list);
 
-  PID_Enable(&pid_controller);
+  TempControl_Enable(&temp_controller);
 
   DigitTube_SetLEDState(1, 1);
   DigitTube_SetLEDState(2, 0);
@@ -176,20 +181,59 @@ int main(void)
     /* add user code begin 3 */
     TouchKey_EventProcess();
 
-    if (g_scan_counter >= 10000)
+    ValveControl_Process();
+
     {
-      g_scan_counter = 0;
+      uint8_t nb_updated = 0;
+      if (DS18B20_GetNBState() != DS_NB_IDLE) {
+        nb_updated = DS18B20_NonBlockingProcess(ds_list);
+      }
+      if (nb_updated) {
+        uint32_t primask;
+        primask = __get_PRIMASK();
+        __disable_irq();
+        current_temp = DS18B20_GetValidTemp();
+        __set_PRIMASK(primask);
 
-      FluidInterlock_MainLoopProcess();
+        TempControl_Compute(&temp_controller, current_temp,
+                    FluidInterlock_IsWpump1Allowed(),
+                    FluidInterlock_IsSer2Valid());
 
-      DS18B20_UpdateAllTemp(ds_list);
-      current_temp = DS18B20_GetValidTemp();
+        if (FluidInterlock_IsAlarmActive()) {
+          DigitTube_DisplayErrorCode(99);
+        } else {
+          DigitTube_ClearErrorCode();
+          DigitTube_DisplayTemp(DS18B20_GetValidDisplayValue(), DigitTube_GetUnit());
+        }
+      } else {
+        if (FluidInterlock_IsAlarmActive()) {
+          DigitTube_DisplayErrorCode(99);
+        }
+      }
+    }
 
-      PID_Compute(&pid_controller, current_temp,
-                  FluidInterlock_IsWpump1Allowed(),
-                  FluidInterlock_IsSer2Valid());
+    {
+      uint32_t primask;
+      uint32_t now;
+      uint32_t elapsed;
 
-      DigitTube_DisplayTemp(DS18B20_GetValidDisplayValue(), DigitTube_GetUnit());
+      primask = __get_PRIMASK();
+      __disable_irq();
+      now = g_scan_counter;
+      __set_PRIMASK(primask);
+
+      if (now >= ds18b20_last_tick) {
+        elapsed = now - ds18b20_last_tick;
+      } else {
+        elapsed = (0xFFFFFFFF - ds18b20_last_tick) + now + 1;
+      }
+
+      if (elapsed >= DS18B20_UPDATE_INTERVAL_TICKS) {
+        ds18b20_last_tick = now;
+        if (DS18B20_GetNBState() == DS_NB_IDLE) {
+          DS18B20_NonBlockingProcess(ds_list);
+        }
+      }
     }
     /* add user code end 3 */
   }

@@ -15,6 +15,7 @@
 #include "fluid_flow_interlock.h"
 #include "at32f403a_407_wk_config.h"
 #include "at32f403a_407_crm.h"
+#include "led_beep.h"
 
 #define FLUID_TMR4_DIV           23u
 #define FLUID_TMR4_PR            9999u
@@ -26,6 +27,20 @@
 #define DETECT_INTERVAL_FIRST    (s_ticks_per_sec * 30u)
 #define DETECT_INTERVAL_LATER    (s_ticks_per_sec * 60u)
 #define DETECT_PHASE_THRESHOLD   5u
+
+#define ALARM_NO_LIQUID_SEC      (5u * 60u)
+#define ALARM_NO_LIQUID_TICKS    (s_ticks_per_sec * ALARM_NO_LIQUID_SEC)
+
+#define ALARM_DURATION_SEC       (3u * 60u)
+#define ALARM_DURATION_TICKS     (s_ticks_per_sec * ALARM_DURATION_SEC)
+
+#define ALARM_BEEP_TOGGLE_TICKS  (s_ticks_per_sec * 1u)
+
+typedef enum {
+    ALARM_IDLE = 0,
+    ALARM_ACTIVE,
+    ALARM_SILENT
+} AlarmState_t;
 
 static uint32_t s_ticks_per_sec = FLUID_FALLBACK_TICKS_SEC;
 
@@ -41,6 +56,12 @@ static uint8_t s_ser2_low_level;
 static uint32_t s_detect_counter;
 static uint8_t s_detect_phase;
 static uint8_t s_detect_busy;
+
+static uint32_t s_no_liquid_ticks;
+static uint32_t s_alarm_ticks;
+static uint32_t s_buzzer_ticks;
+static uint8_t s_buzzer_on;
+static AlarmState_t s_alarm_state;
 
 static uint32_t tmr4_apb1_timer_clock_hz(void)
 {
@@ -87,6 +108,12 @@ void FluidInterlock_Init(void)
   s_detect_counter = 0;
   s_detect_phase = 0;
   s_detect_busy = 1;
+
+  s_no_liquid_ticks = 0;
+  s_alarm_ticks = 0;
+  s_buzzer_ticks = 0;
+  s_buzzer_on = 0;
+  s_alarm_state = ALARM_IDLE;
 }
 
 void FluidInterlock_Tmr4Tick(void)
@@ -144,6 +171,48 @@ void FluidInterlock_Tmr4Tick(void)
       s_ser2_low_level = 0;
     }
   }
+
+  /* 液面超时报警状态机 */
+  if (s_liquid_ok) {
+    s_no_liquid_ticks = 0;
+    if (s_alarm_state != ALARM_IDLE) {
+      s_alarm_state = ALARM_IDLE;
+      s_alarm_ticks = 0;
+      s_buzzer_ticks = 0;
+      s_buzzer_on = 0;
+      BEEP_Off();
+    }
+  } else {
+    s_no_liquid_ticks++;
+    if (s_alarm_state == ALARM_IDLE) {
+      if (s_no_liquid_ticks >= ALARM_NO_LIQUID_TICKS) {
+        s_alarm_state = ALARM_ACTIVE;
+        s_alarm_ticks = 0;
+        s_buzzer_ticks = 0;
+        s_buzzer_on = 1;
+        BEEP_On();
+      }
+    }
+  }
+
+  if (s_alarm_state == ALARM_ACTIVE) {
+    s_buzzer_ticks++;
+    if (s_buzzer_ticks >= ALARM_BEEP_TOGGLE_TICKS) {
+      s_buzzer_ticks = 0;
+      s_buzzer_on = !s_buzzer_on;
+      if (s_buzzer_on) {
+        BEEP_On();
+      } else {
+        BEEP_Off();
+      }
+    }
+    s_alarm_ticks++;
+    if (s_alarm_ticks >= ALARM_DURATION_TICKS) {
+      s_alarm_state = ALARM_SILENT;
+      s_buzzer_on = 0;
+      BEEP_Off();
+    }
+  }
 }
 
 void FluidInterlock_MainLoopProcess(void)
@@ -189,4 +258,9 @@ uint8_t FluidInterlock_CoolingAllowed(void)
     return 0;
   }
   return 1;
+}
+
+uint8_t FluidInterlock_IsAlarmActive(void)
+{
+  return (s_alarm_state != ALARM_IDLE) ? 1u : 0u;
 }

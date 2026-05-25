@@ -37,6 +37,8 @@ uint8_t FluidInterlock_GetSer2LowLevel(void);
 
 uint8_t FluidInterlock_CoolingAllowed(void);
 
+uint8_t FluidInterlock_IsAlarmActive(void);
+
 #ifdef __cplusplus
 }
 #endif

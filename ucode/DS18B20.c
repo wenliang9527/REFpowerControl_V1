@@ -15,6 +15,7 @@
 
 #include "DS18B20.h"
 #include "sensor_input.h"
+#include "digit_tube.h"
 #include <string.h>
 
 #define DS18B20_ROM_LEN     8
@@ -148,27 +149,22 @@ int16_t DS18B20_GetValidDisplayValue(void)
 
 uint8_t DS18B20_UpdateGlobalData(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
 {
-    uint8_t ret = 0;
-
     if (dev_list == NULL || dev_list->dev_cnt == 0) {
         return 1;
     }
 
-    ret = DS18B20_MeasureAll(DSnum, dev_list);
-    if (ret == 0) {
-        if (DSnum == DSB1 && dev_list->dev_cnt > 0) {
-            g_sensor_data.temperature.temp1 = dev_list->devices[0].temperature;
-            g_sensor_data.temperature.temp1_valid = dev_list->devices[0].valid;
-            g_sensor_data.temperature.update_flag = 1;
-        } else if (DSnum == DSB2 && dev_list->dev_cnt > 0) {
-            g_sensor_data.temperature.temp2 = dev_list->devices[0].temperature;
-            g_sensor_data.temperature.temp2_valid = dev_list->devices[0].valid;
-            g_sensor_data.temperature.update_flag = 1;
-        }
-        g_sensor_data.last_update_time++;
+    if (DSnum == DSB1 && dev_list->dev_cnt > 0) {
+        g_sensor_data.temperature.temp1 = dev_list->devices[0].temperature;
+        g_sensor_data.temperature.temp1_valid = dev_list->devices[0].valid;
+        g_sensor_data.temperature.update_flag = 1;
+    } else if (DSnum == DSB2 && dev_list->dev_cnt > 0) {
+        g_sensor_data.temperature.temp2 = dev_list->devices[0].temperature;
+        g_sensor_data.temperature.temp2_valid = dev_list->devices[0].valid;
+        g_sensor_data.temperature.update_flag = 1;
     }
+    g_sensor_data.last_update_time++;
 
-    return ret;
+    return 0;
 }
 
 void DigitalSensor_UpdateGlobalData(void)
@@ -508,6 +504,10 @@ bool DSIn_read(u8 DSnum)
 static uint8_t DS18B20_Reset(u8 DSnum)
 {
     uint8_t ack_flag = 0;
+    uint32_t primask;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
 
     DSIOsetInOut(DSnum, DSout);
     DSout_set_HL(DSnum, DSSetL);
@@ -520,11 +520,19 @@ static uint8_t DS18B20_Reset(u8 DSnum)
         ack_flag = 1;
     }
     DS_Delay_us(420);
+
+    __set_PRIMASK(primask);
+
     return ack_flag;
 }
 
 static void DS18B20_WriteBit(u8 DSnum, uint8_t bit)
 {
+    uint32_t primask;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+
     DSIOsetInOut(DSnum, DSout);
     DSout_set_HL(DSnum, DSSetL);
     DS_Delay_us(2);
@@ -536,11 +544,17 @@ static void DS18B20_WriteBit(u8 DSnum, uint8_t bit)
         DSIOsetInOut(DSnum, DSint);
         DS_Delay_us(2);
     }
+
+    __set_PRIMASK(primask);
 }
 
 static uint8_t DS18B20_ReadBit(u8 DSnum)
 {
     uint8_t bit = 0;
+    uint32_t primask;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
 
     DSIOsetInOut(DSnum, DSout);
     DSout_set_HL(DSnum, DSSetL);
@@ -551,6 +565,9 @@ static uint8_t DS18B20_ReadBit(u8 DSnum)
         bit = 1;
     }
     DS_Delay_us(60);
+
+    __set_PRIMASK(primask);
+
     return bit;
 }
 
@@ -737,7 +754,7 @@ uint8_t DS18B20_MeasureSingle(u8 DSnum, DS18B20_DeviceTypeDef *dev)
         return 1;
     }
 
-    temp_raw = (scratchpad[1] << 8) | scratchpad[0];
+    temp_raw = ((scratchpad[1] << 8) | scratchpad[0]) & 0xFFFC;
     if (temp_raw & 0x8000) {
         dev->temperature = (float)(~temp_raw + 1) * (-0.0625f);
     } else {
@@ -791,7 +808,7 @@ uint8_t DS18B20_MeasureAll(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
             continue;
         }
 
-        temp_raw = (scratchpad[1] << 8) | scratchpad[0];
+        temp_raw = ((scratchpad[1] << 8) | scratchpad[0]) & 0xFFFC;
         if (temp_raw & 0x8000) {
             dev_list->devices[i].temperature = (float)(~temp_raw + 1) * (-0.0625f);
         } else {
@@ -811,6 +828,27 @@ void DS18B20_gpio_Init(void)
 #endif
 }
 
+uint8_t DS18B20_SetResolution(u8 DSnum, uint8_t resolution)
+{
+    if (!DS18B20_Reset(DSnum)) {
+        return 1;
+    }
+    DS18B20_WriteByte(DSnum, DS18B20_CMD_SKIP_ROM);
+    DS18B20_WriteByte(DSnum, DS18B20_CMD_WRITE_SCRATCH);
+    DS18B20_WriteByte(DSnum, 0x00);
+    DS18B20_WriteByte(DSnum, 0x00);
+    DS18B20_WriteByte(DSnum, resolution);
+
+    if (!DS18B20_Reset(DSnum)) {
+        return 1;
+    }
+    DS18B20_WriteByte(DSnum, DS18B20_CMD_SKIP_ROM);
+    DS18B20_WriteByte(DSnum, DS18B20_CMD_COPY_SCRATCH);
+    DS_Delay_ms(10);
+
+    return 0;
+}
+
 uint8_t DS18B20_Init(DS18B20_MultiDeviceTypeDef *dev_list[])
 {
     u8 DSbnum = 0;
@@ -818,6 +856,14 @@ uint8_t DS18B20_Init(DS18B20_MultiDeviceTypeDef *dev_list[])
     u8 cnt2 = 0;
 
     DS18B20_gpio_Init();
+
+#if DS_1
+    DS18B20_SetResolution(DSB1, DS18B20_RES_10BIT);
+#endif
+
+#if DS_2
+    DS18B20_SetResolution(DSB2, DS18B20_RES_10BIT);
+#endif
 
 #if DS_1
     cnt1 = DS18B20_SearchDevices(DSB1, dev_list[DSB1]);
@@ -836,4 +882,146 @@ uint8_t DS18B20_Init(DS18B20_MultiDeviceTypeDef *dev_list[])
         g_sensor_data.temperature.sensor2_present;
 
     return DSbnum;
+}
+
+static DS18B20_NB_State_t s_nb_state = DS_NB_IDLE;
+static uint32_t s_nb_start_tick = 0;
+
+static uint8_t DS18B20_StartConvert(DS18B20_MultiDeviceTypeDef *dev_list[])
+{
+    uint8_t any_started = 0;
+
+#if DS_1
+    if (g_sensor_data.temperature.sensor1_present && dev_list[DSB1]->dev_cnt > 0) {
+        if (DS18B20_Reset(DSB1)) {
+            DS18B20_WriteByte(DSB1, DS18B20_CMD_SKIP_ROM);
+            DS18B20_WriteByte(DSB1, DS18B20_CMD_CONVERT_T);
+            any_started = 1;
+        } else {
+            dev_list[DSB1]->devices[0].valid = 0;
+        }
+    }
+#endif
+
+#if DS_2
+    if (g_sensor_data.temperature.sensor2_present && dev_list[DSB2]->dev_cnt > 0) {
+        if (DS18B20_Reset(DSB2)) {
+            DS18B20_WriteByte(DSB2, DS18B20_CMD_SKIP_ROM);
+            DS18B20_WriteByte(DSB2, DS18B20_CMD_CONVERT_T);
+            any_started = 1;
+        } else {
+            dev_list[DSB2]->devices[0].valid = 0;
+        }
+    }
+#endif
+
+    return any_started;
+}
+
+static void DS18B20_ReadAllResults(DS18B20_MultiDeviceTypeDef *dev_list[])
+{
+    uint8_t i, j;
+    uint8_t scratchpad[9] = {0};
+    uint16_t temp_raw = 0;
+
+#if DS_1
+    if (g_sensor_data.temperature.sensor1_present && dev_list[DSB1]->dev_cnt > 0) {
+        if (!DS18B20_Reset(DSB1)) {
+            dev_list[DSB1]->devices[0].valid = 0;
+        } else {
+            DS18B20_WriteByte(DSB1, DS18B20_CMD_SKIP_ROM);
+            DS18B20_WriteByte(DSB1, DS18B20_CMD_READ_SCRATCH);
+            for (j = 0; j < 9; j++) {
+                scratchpad[j] = DS18B20_ReadByte(DSB1);
+            }
+            if (DS18B20_CalcCRC8(scratchpad, 8) != scratchpad[8]) {
+                dev_list[DSB1]->devices[0].valid = 0;
+            } else {
+                temp_raw = ((scratchpad[1] << 8) | scratchpad[0]) & 0xFFFC;
+                if (temp_raw & 0x8000) {
+                    dev_list[DSB1]->devices[0].temperature = (float)(~temp_raw + 1) * (-0.0625f);
+                } else {
+                    dev_list[DSB1]->devices[0].temperature = (float)temp_raw * 0.0625f;
+                }
+                dev_list[DSB1]->devices[0].valid = 1;
+            }
+        }
+    }
+#endif
+
+#if DS_2
+    if (g_sensor_data.temperature.sensor2_present && dev_list[DSB2]->dev_cnt > 0) {
+        if (!DS18B20_Reset(DSB2)) {
+            dev_list[DSB2]->devices[0].valid = 0;
+        } else {
+            DS18B20_WriteByte(DSB2, DS18B20_CMD_SKIP_ROM);
+            DS18B20_WriteByte(DSB2, DS18B20_CMD_READ_SCRATCH);
+            for (j = 0; j < 9; j++) {
+                scratchpad[j] = DS18B20_ReadByte(DSB2);
+            }
+            if (DS18B20_CalcCRC8(scratchpad, 8) != scratchpad[8]) {
+                dev_list[DSB2]->devices[0].valid = 0;
+            } else {
+                temp_raw = ((scratchpad[1] << 8) | scratchpad[0]) & 0xFFFC;
+                if (temp_raw & 0x8000) {
+                    dev_list[DSB2]->devices[0].temperature = (float)(~temp_raw + 1) * (-0.0625f);
+                } else {
+                    dev_list[DSB2]->devices[0].temperature = (float)temp_raw * 0.0625f;
+                }
+                dev_list[DSB2]->devices[0].valid = 1;
+            }
+        }
+    }
+#endif
+
+    (void)i; (void)temp_raw; (void)scratchpad;
+}
+
+uint8_t DS18B20_NonBlockingProcess(DS18B20_MultiDeviceTypeDef *dev_list[])
+{
+    uint8_t updated = 0;
+    uint32_t primask;
+    uint32_t elapsed;
+    uint32_t now;
+
+    switch (s_nb_state) {
+        case DS_NB_IDLE:
+            if (DS18B20_StartConvert(dev_list)) {
+                s_nb_state = DS_NB_CONVERTING;
+                primask = __get_PRIMASK();
+                __disable_irq();
+                s_nb_start_tick = g_scan_counter;
+                __set_PRIMASK(primask);
+            }
+            break;
+
+        case DS_NB_CONVERTING:
+            primask = __get_PRIMASK();
+            __disable_irq();
+            now = g_scan_counter;
+            __set_PRIMASK(primask);
+            elapsed = now - s_nb_start_tick;
+            if (elapsed >= DS18B20_CONVERT_TICKS) {
+                s_nb_state = DS_NB_READ;
+            }
+            break;
+
+        case DS_NB_READ:
+            DS18B20_ReadAllResults(dev_list);
+            DS18B20_UpdateAllTemp(dev_list);
+            s_nb_state = DS_NB_IDLE;
+            updated = 1;
+            break;
+
+        default:
+            s_nb_state = DS_NB_IDLE;
+            break;
+    }
+
+    return updated;
+}
+
+DS18B20_NB_State_t DS18B20_GetNBState(void)
+{
+    return s_nb_state;
 }

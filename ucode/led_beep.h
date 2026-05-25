@@ -91,4 +91,8 @@ void LED_Toggle(uint8_t led_id);
   */
 void LED_PowerIndicator_Set(uint8_t power_on);
 
+void LED_PowerIndicator_BlinkStart(void);
+void LED_PowerIndicator_BlinkStop(void);
+uint8_t LED_PowerIndicator_GetState(void);
+
 #endif

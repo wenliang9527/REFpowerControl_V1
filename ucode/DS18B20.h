@@ -16,6 +16,16 @@
 #include "at32f403a_407_wk_config.h"
 #include <stdbool.h>
 
+#ifndef DS18B20_1_PIN
+#define DS18B20_1_PIN    TEMP_1_PIN
+#define DS18B20_1_GPIO_PORT    TEMP_1_GPIO_PORT
+#endif
+
+#ifndef DS18B20_2_PIN
+#define DS18B20_2_PIN    TEMP_2_PIN
+#define DS18B20_2_GPIO_PORT    TEMP_2_GPIO_PORT
+#endif
+
 #define  DS_TempNumber   3
 #define SL_HALLIB 1
 
@@ -51,6 +61,13 @@
 #define DS18B20_CMD_SEARCH_ROM   0xF0
 #define DS18B20_CMD_CONVERT_T    0x44
 #define DS18B20_CMD_READ_SCRATCH 0xBE
+#define DS18B20_CMD_WRITE_SCRATCH 0x4E
+#define DS18B20_CMD_COPY_SCRATCH  0x48
+
+#define DS18B20_RES_9BIT    0x1F
+#define DS18B20_RES_10BIT   0x3F
+#define DS18B20_RES_11BIT   0x5F
+#define DS18B20_RES_12BIT   0x7F
 
 typedef enum
 {
@@ -136,5 +153,18 @@ extern void DigitalSensor_UpdateGlobalData(void);
 extern void GlobalSensorData_Init(void);
 extern uint8_t DS18B20_MeasureAll(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list);
 extern uint8_t DS18B20_MeasureSingle(u8 DSnum, DS18B20_DeviceTypeDef *dev);
+
+typedef enum {
+    DS_NB_IDLE,
+    DS_NB_CONVERTING,
+    DS_NB_READ
+} DS18B20_NB_State_t;
+
+#define DS18B20_CONVERT_MS  200
+#define DS18B20_CONVERT_TICKS  (DS18B20_CONVERT_MS * 10u)
+
+extern uint8_t DS18B20_SetResolution(u8 DSnum, uint8_t resolution);
+extern uint8_t DS18B20_NonBlockingProcess(DS18B20_MultiDeviceTypeDef *dev_list[]);
+extern DS18B20_NB_State_t DS18B20_GetNBState(void);
 
 #endif

@@ -32,8 +32,10 @@ extern "C" {
 #define DEBOUNCE_COUNT          30
 /** 短按判定采样次数阈值, 按住150次采样才判定为有效短按 */
 #define SHORT_PRESS_TIME        150
-/** TOUCH_1锁定时间计数, 触发短按后锁定5000个扫描周期 */
-#define TOUCH1_LOCK_TIME        5000
+/** TOUCH_1短按判定采样次数阈值, 按住5000次采样才判定为有效短按 */
+#define TOUCH1_SHORT_PRESS_TIME 5000
+/** TOUCH_1锁定时间计数, 触发短按后锁定30000个扫描周期 */
+#define TOUCH1_LOCK_TIME        30000
 
 /**
   * @brief  按键事件类型枚举
@@ -81,7 +83,7 @@ typedef struct {
     touch1_lock_t touch1_lock;         /**< TOUCH_1锁定状态 */
 } touch_key_status_t;
 
-extern touch_key_status_t g_touch_key_status;
+extern volatile touch_key_status_t g_touch_key_status;
 
 /**
   * @brief  触摸按键模块初始化

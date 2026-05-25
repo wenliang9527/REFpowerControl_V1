@@ -20,7 +20,7 @@
 #include "led_beep.h"
 
 /** 全局触摸按键状态变量 */
-touch_key_status_t g_touch_key_status = {0};
+volatile touch_key_status_t g_touch_key_status = {0};
 
 /** 触摸按键GPIO端口映射表, 索引对应TOUCH_KEY_*编号 */
 static const gpio_type* touch_key_gpio_port[TOUCH_KEY_NUM] = {
@@ -62,7 +62,7 @@ static uint8_t read_key_gpio(uint8_t key_id)
   */
 static void key_debounce_process(uint8_t key_id, uint8_t gpio_state)
 {
-    key_status_t *key = &g_touch_key_status.keys[key_id];
+    volatile key_status_t *key = &g_touch_key_status.keys[key_id];
 
     if (gpio_state) {
         key->debounce_count++;
@@ -84,7 +84,7 @@ static void key_debounce_process(uint8_t key_id, uint8_t gpio_state)
   */
 static void key_state_machine(uint8_t key_id)
 {
-    key_status_t *key = &g_touch_key_status.keys[key_id];
+    volatile key_status_t *key = &g_touch_key_status.keys[key_id];
     uint8_t gpio_state;
 
     gpio_state = read_key_gpio(key_id);
@@ -103,18 +103,39 @@ static void key_state_machine(uint8_t key_id)
         key_debounce_process(key_id, gpio_state);
     }
     else if (key->current_state == KEY_STATE_PRESS) {
-        /* 按下状态: 累计按下时间 */
         if (gpio_state) {
             key->press_time++;
+            if (key_id == TOUCH_KEY_1 && !key->event_pending) {
+                if (key->press_time == 1u) {
+                    LED_PowerIndicator_BlinkStart();
+                }
+                if (key->press_time >= TOUCH1_SHORT_PRESS_TIME) {
+                    uint8_t new_state;
+                    LED_PowerIndicator_BlinkStop();
+                    new_state = !LED_PowerIndicator_GetState();
+                    LED_PowerIndicator_Set(new_state);
+                    if (new_state) {
+                        control_device(DEVICE_M_POWER_C, DEVICE_STATE_HIGH);
+                    } else {
+                        control_device(DEVICE_M_POWER_C, DEVICE_STATE_LOW);
+                    }
+                    key->event = KEY_EVENT_SHORT_PRESS;
+                    key->event_pending = 1;
+                }
+            }
         } else {
-            /* 释放: 退回消抖状态 */
             key->current_state = KEY_STATE_DEBOUNCE;
             key->debounce_count = 0;
 
-            /* 按下时间达到阈值且事件未被处理, 触发短按事件 */
-            if (key->press_time >= SHORT_PRESS_TIME && !key->event_pending) {
-                key->event = KEY_EVENT_SHORT_PRESS;
-                key->event_pending = 1;
+            if (key_id == TOUCH_KEY_1) {
+                if (!key->event_pending) {
+                    LED_PowerIndicator_BlinkStop();
+                }
+            } else {
+                if (key->press_time >= SHORT_PRESS_TIME && !key->event_pending) {
+                    key->event = KEY_EVENT_SHORT_PRESS;
+                    key->event_pending = 1;
+                }
             }
         }
     }
@@ -203,22 +224,9 @@ void TouchKey_Scan(void)
   */
 void TouchKeyShortpressevent(u8 key)
 {
-    static uint8_t power_state = 0;
-
     switch(key)
     {
         case TOUCH_KEY_1:
-            /* 切换电源状态 */
-            power_state = !power_state;
-            if (power_state) {
-                /* 打开电源: M_POWER_C 高, LED2 高, LED_POWER_C 低 */
-                LED_PowerIndicator_Set(1);
-                control_device(DEVICE_M_POWER_C, DEVICE_STATE_HIGH);
-            } else {
-                /* 关闭电源: M_POWER_C 低, LED2 低, LED_POWER_C 高 */
-                LED_PowerIndicator_Set(0);
-                control_device(DEVICE_M_POWER_C, DEVICE_STATE_LOW);
-            }
             break;
         case TOUCH_KEY_2:
             break;

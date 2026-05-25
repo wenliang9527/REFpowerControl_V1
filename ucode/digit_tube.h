@@ -49,7 +49,7 @@ extern "C" {
 #define TUBE_SCAN_PERIOD        100
 #define TUBE_SCAN_DIV           240
 
-#define TUBE_SCAN_IRQ_PREEMPT   2
+#define TUBE_SCAN_IRQ_PREEMPT   0
 #define TUBE_SCAN_IRQ_SUB       0
 
 #define TUBE_DIGIT_NUM          3
@@ -93,6 +93,8 @@ void DigitTube_ClearError(void);
 uint8_t DigitTube_IsError(void);
 uint32_t DigitTube_GetScanCounter(void);
 void DigitTube_ResetScanCounter(void);
+void DigitTube_DisplayErrorCode(uint16_t code);
+void DigitTube_ClearErrorCode(void);
 
 #ifdef __cplusplus
 }
