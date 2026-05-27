@@ -64,6 +64,7 @@
 /* private variables ---------------------------------------------------------*/
 /* add user code begin private variables */
 static TempController_t temp_controller;
+static CoolingPID_t cooling_pid;
 static DS18B20_MultiDeviceTypeDef *ds_list[DS_TempNumber];
 static float current_temp = 0.0f;
 static uint32_t ds18b20_last_tick = 0;
@@ -110,10 +111,9 @@ int main(void)
      void wk_delay_ms(uint32_t delay); */
   wk_timebase_init();
 
- 
-
   /* init gpio function. */
   wk_gpio_config();
+
   /* init dma1 channel1 */
   wk_dma1_channel1_init();
   /* config dma channel transfer parameter */
@@ -151,7 +151,18 @@ int main(void)
   /* init tmr4 function. */
   wk_tmr4_init();
 
+  /* init tmr5 function. */
+  wk_tmr5_init();
+
   /* add user code begin 2 */
+
+  /* 初始化所有LED和控制引脚为关闭状态（拉高） */
+//  gpio_bits_set(GPIOC, LED2_PIN | LED3_PIN | LED4_PIN | SW_VALVE_2_PIN | SW_WPUMP_2_PIN | M_POWER_C_PIN);
+//  gpio_bits_set(GPIOA, LED5_PIN | SW_FAN_2_PIN | SW_FAN_1_PIN | SW_WPUMP_1_PIN);
+//  gpio_bits_set(GPIOB, LED_POWER_C_PIN);
+//  gpio_bits_set(GPIOD, SW_VALVE_1_PIN);
+//  gpio_bits_reset(GPIOC, BEEP_PIN);  /* 蜂鸣器拉低关闭 */
+
   GlobalSensorData_Init();
   DeviceControl_Init();
   SensorInput_Init();
@@ -163,6 +174,7 @@ int main(void)
 
   DigitTube_Init();
   TempControl_Init(&temp_controller);
+  CoolingPID_Init(&cooling_pid);
 
   ds_list[DSB1] = &DSTemp[DSB1];
   ds_list[DSB2] = &DSTemp[DSB2];
@@ -197,7 +209,8 @@ int main(void)
 
         TempControl_Compute(&temp_controller, current_temp,
                     FluidInterlock_IsWpump1Allowed(),
-                    FluidInterlock_IsSer2Valid());
+                    FluidInterlock_IsSer2Valid(),
+                    &cooling_pid);
 
         if (FluidInterlock_IsAlarmActive()) {
           DigitTube_DisplayErrorCode(99);

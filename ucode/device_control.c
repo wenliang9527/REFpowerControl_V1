@@ -1,20 +1,22 @@
 /**
   ******************************************************************************
   * @file    device_control.c
-  * @brief   设备控制驱动实现文件
-  * @version V2.0.0
-  * @date    2026-04-27
+  * @brief   设备GPIO控制模块实现文件
+  * @version V1.0.0
+  * @date    2026-05-26
   * @note    功能说明:
-  *          1. 多路设备开关控制 (制冷、风扇、水泵、阀门等)
-  *          2. GPIO极性: 低电平有效 (gpio_bits_set=关, gpio_bits_reset=开)
+  *          1. 管理风扇、水泵、阀门、主电源等设备的GPIO输出控制
+  *          2. GPIO有效电平说明:
+  *             - 风扇/水泵/阀门: 高电平=关闭, 低电平=开启
+  *             - M_POWER_C: 高电平=开启, 低电平=关闭
   ******************************************************************************
   */
 
 #include "device_control.h"
 #include "at32f403a_407_wk_config.h"
 
+/** @brief 设备GPIO端口映射表, 索引对应 DEVICE_SW_FAN_1 ~ DEVICE_SW_VALVE_2 */
 static const gpio_type* device_gpio_port[DEVICE_NUM] = {
-    SW_REF_GPIO_PORT,
     SW_FAN_1_GPIO_PORT,
     SW_FAN_2_GPIO_PORT,
     SW_WPUMP_1_GPIO_PORT,
@@ -24,8 +26,8 @@ static const gpio_type* device_gpio_port[DEVICE_NUM] = {
     SW_VALVE_2_GPIO_PORT
 };
 
+/** @brief 设备GPIO引脚映射表, 索引与 device_gpio_port 一一对应 */
 static const uint16_t device_gpio_pin[DEVICE_NUM] = {
-    SW_REF_PIN,
     SW_FAN_1_PIN,
     SW_FAN_2_PIN,
     SW_WPUMP_1_PIN,
@@ -35,8 +37,8 @@ static const uint16_t device_gpio_pin[DEVICE_NUM] = {
     SW_VALVE_2_PIN
 };
 
+/** @brief 设备GPIO外设时钟映射表, 索引与 device_gpio_port 一一对应 */
 static const crm_periph_clock_type device_gpio_clock[DEVICE_NUM] = {
-    CRM_GPIOB_PERIPH_CLOCK,
     CRM_GPIOA_PERIPH_CLOCK,
     CRM_GPIOA_PERIPH_CLOCK,
     CRM_GPIOA_PERIPH_CLOCK,
@@ -46,6 +48,12 @@ static const crm_periph_clock_type device_gpio_clock[DEVICE_NUM] = {
     CRM_GPIOC_PERIPH_CLOCK
 };
 
+/**
+  * @brief  设备控制模块初始化
+  * @note   配置所有设备GPIO为推挽输出模式, 并设置初始电平:
+  *         - M_POWER_C 初始化为低电平(关闭)
+  *         - 其余设备初始化为高电平(关闭)
+  */
 void DeviceControl_Init(void)
 {
     gpio_init_type gpio_init_struct;
@@ -71,6 +79,15 @@ void DeviceControl_Init(void)
     }
 }
 
+/**
+  * @brief  控制指定设备的开关状态
+  * @param  device_code  设备编号, 取值为 DEVICE_SW_FAN_1 ~ DEVICE_SW_VALVE_2
+  * @param  switch_state 开关状态, DEVICE_STATE_HIGH(高电平) 或 DEVICE_STATE_LOW(低电平)
+  * @return 无
+  * @note   高电平=关闭(风扇/水泵/阀门), 低电平=开启(风扇/水泵/阀门);
+  *         M_POWER_C相反: 高电平=开启, 低电平=关闭
+  *         非法参数时函数直接返回, 不执行任何操作
+  */
 void control_device(uint8_t device_code, uint8_t switch_state)
 {
     if (device_code >= DEVICE_NUM) {

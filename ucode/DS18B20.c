@@ -27,6 +27,10 @@ DS18B20_MultiDeviceTypeDef DSTemp[DS_TempNumber];
 
 GlobalSensorData_t g_sensor_data = {0};
 
+/**
+ * @brief  初始化全局传感器数据结构体
+ * @note   将温度、显示值、数字传感器等所有字段清零并设为默认值
+ */
 void GlobalSensorData_Init(void)
 {
     memset(&g_sensor_data, 0, sizeof(GlobalSensorData_t));
@@ -59,6 +63,12 @@ void GlobalSensorData_Init(void)
     g_sensor_data.last_update_time = 0;
 }
 
+/**
+ * @brief  更新所有温度传感器数据并计算平均值
+ * @param  dev_list 设备列表指针数组，按总线编号索引
+ * @retval 0 成功（至少一个有效通道），1 失败（无有效通道）
+ * @note   根据当前显示单位计算平均温度的显示值，范围限制在 -9~99
+ */
 uint8_t DS18B20_UpdateAllTemp(DS18B20_MultiDeviceTypeDef *dev_list[])
 {
     uint8_t ret = 0;
@@ -113,6 +123,10 @@ uint8_t DS18B20_UpdateAllTemp(DS18B20_MultiDeviceTypeDef *dev_list[])
     return (valid_cnt > 0) ? 0 : 1;
 }
 
+/**
+ * @brief  获取有效温度值（摄氏度）
+ * @retval 有效温度值，优先级：平均值 > 通道1 > 通道2 > 0.0f
+ */
 float DS18B20_GetValidTemp(void)
 {
     if (g_sensor_data.temperature.avg_valid) {
@@ -130,6 +144,10 @@ float DS18B20_GetValidTemp(void)
     return 0.0f;
 }
 
+/**
+ * @brief  获取有效显示值（整型，已按显示单位换算）
+ * @retval 有效显示值，优先级：平均值 > 通道1 > 通道2 > 0
+ */
 int16_t DS18B20_GetValidDisplayValue(void)
 {
     if (g_sensor_data.temperature.avg_valid) {
@@ -147,6 +165,12 @@ int16_t DS18B20_GetValidDisplayValue(void)
     return 0;
 }
 
+/**
+ * @brief  更新指定通道的全局温度数据
+ * @param  DSnum 总线编号 (DSB1/DSB2)
+ * @param  dev_list 该总线上的设备列表
+ * @retval 0 成功，1 失败（参数无效或无设备）
+ */
 uint8_t DS18B20_UpdateGlobalData(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
 {
     if (dev_list == NULL || dev_list->dev_cnt == 0) {
@@ -167,6 +191,10 @@ uint8_t DS18B20_UpdateGlobalData(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
     return 0;
 }
 
+/**
+ * @brief  更新数字传感器全局数据
+ * @note   读取三路数字传感器输入状态并设置更新标志
+ */
 void DigitalSensor_UpdateGlobalData(void)
 {
     g_sensor_data.digital_sensor.sensor1_state = SensorInput_GetState(SENSOR_IN_1);
@@ -176,6 +204,13 @@ void DigitalSensor_UpdateGlobalData(void)
     g_sensor_data.last_update_time++;
 }
 
+/**
+ * @brief  测量温度并更新显示数据
+ * @param  DSnum 总线编号 (DSB1/DSB2)
+ * @param  dev_list 该总线上的设备列表
+ * @retval 0 成功，1 失败
+ * @note   先执行温度测量，再根据显示单位换算并更新对应通道的显示值
+ */
 uint8_t DS18B20_UpdateDisplayData(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
 {
     uint8_t ret = 0;
@@ -216,6 +251,11 @@ uint8_t DS18B20_UpdateDisplayData(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list
     return ret;
 }
 
+/**
+ * @brief  设置温度显示单位
+ * @param  unit 0-摄氏度，1-华氏度
+ * @note   切换单位后会重新计算所有有效通道的显示值
+ */
 void DS18B20_SetDisplayUnit(uint8_t unit)
 {
     float temp_celsius = 0.0f;
@@ -251,6 +291,12 @@ void DS18B20_SetDisplayUnit(uint8_t unit)
     g_sensor_data.last_update_time++;
 }
 
+/**
+ * @brief  设置目标温度
+ * @param  channel 通道号 (1 或 2)
+ * @param  temp 目标温度值（摄氏度）
+ * @retval 0 成功，1 失败（通道号无效）
+ */
 uint8_t DS18B20_SetTargetTemp(uint8_t channel, float temp)
 {
     if (channel != 1 && channel != 2) {
@@ -271,6 +317,11 @@ uint8_t DS18B20_SetTargetTemp(uint8_t channel, float temp)
     return 0;
 }
 
+/**
+ * @brief  获取目标温度
+ * @param  channel 通道号 (1 或 2)
+ * @retval 目标温度值（摄氏度），通道号无效时返回 0.0f
+ */
 float DS18B20_GetTargetTemp(uint8_t channel)
 {
     if (channel == 1) {
@@ -282,6 +333,11 @@ float DS18B20_GetTargetTemp(uint8_t channel)
     return 0.0f;
 }
 
+/**
+ * @brief  更新设定温度的显示值
+ * @param  channel 通道号 (1 或 2)
+ * @note   根据当前显示单位将设定温度转换为整型显示值
+ */
 void DS18B20_UpdateSetTempDisplay(uint8_t channel)
 {
     float set_temp = 0.0f;
@@ -314,6 +370,10 @@ void DS18B20_UpdateSetTempDisplay(uint8_t channel)
     g_sensor_data.last_update_time++;
 }
 
+/**
+ * @brief  微秒延时（NOP空循环）
+ * @note   通过执行NOP指令实现约1us延时，受主频影响
+ */
 void DSdelay_1us(void)
 {
     __NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
@@ -331,6 +391,11 @@ void DSdelay_1us(void)
     __NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
 }
 
+/**
+ * @brief  微秒延时函数
+ * @param  num 延时微秒数
+ * @note   SL_HALLIB模式下使用wk_delay_us，否则使用NOP循环
+ */
 void DS_Delay_us(u16 num)
 {
     uint16_t i;
@@ -344,6 +409,11 @@ void DS_Delay_us(u16 num)
     }
 }
 
+/**
+ * @brief  毫秒延时函数
+ * @param  num 延时毫秒数
+ * @note   SL_HALLIB模式下使用wk_delay_ms，否则循环调用DS_Delay_us(1000)
+ */
 void DS_Delay_ms(u16 num)
 {
     uint16_t i;
@@ -357,6 +427,12 @@ void DS_Delay_ms(u16 num)
     }
 }
 
+/**
+ * @brief  CRC8校验计算（Dallas 1-Wire多项式 0x8C）
+ * @param  data 待校验数据指针
+ * @param  len  数据长度
+ * @retval CRC8校验值
+ */
 static uint8_t DS18B20_CalcCRC8(uint8_t *data, uint8_t len)
 {
     uint8_t crc = 0x00;
@@ -377,6 +453,9 @@ static uint8_t DS18B20_CalcCRC8(uint8_t *data, uint8_t len)
 #if SL_HALLIB
 
 #if DS_1
+/**
+ * @brief  DS18B20_1引脚设置为推挽输出模式
+ */
 static void DS18B20_1_SetOutput(void)
 {
     gpio_init_type gpio_init_struct;
@@ -389,6 +468,9 @@ static void DS18B20_1_SetOutput(void)
     gpio_init(DS18B20_1_GPIO_PORT, &gpio_init_struct);
 }
 
+/**
+ * @brief  DS18B20_1引脚设置为浮空输入模式
+ */
 static void DS18B20_1_SetInput(void)
 {
     gpio_init_type gpio_init_struct;
@@ -401,6 +483,9 @@ static void DS18B20_1_SetInput(void)
 #endif
 
 #if DS_2
+/**
+ * @brief  DS18B20_2引脚设置为推挽输出模式
+ */
 static void DS18B20_2_SetOutput(void)
 {
     gpio_init_type gpio_init_struct;
@@ -413,6 +498,9 @@ static void DS18B20_2_SetOutput(void)
     gpio_init(DS18B20_2_GPIO_PORT, &gpio_init_struct);
 }
 
+/**
+ * @brief  DS18B20_2引脚设置为浮空输入模式
+ */
 static void DS18B20_2_SetInput(void)
 {
     gpio_init_type gpio_init_struct;
@@ -426,6 +514,11 @@ static void DS18B20_2_SetInput(void)
 
 #endif
 
+/**
+ * @brief  设置指定DS18B20总线的引脚方向
+ * @param  DSnum 总线编号 (DSB1/DSB2)
+ * @param  Inout DSout-输出，DSint-输入
+ */
 void DSIOsetInOut(u8 DSnum, bool Inout)
 {
     switch(DSnum)
@@ -453,6 +546,11 @@ void DSIOsetInOut(u8 DSnum, bool Inout)
     }
 }
 
+/**
+ * @brief  设置指定DS18B20总线的输出电平
+ * @param  DSnum 总线编号 (DSB1/DSB2)
+ * @param  OutHL DSSetH-高电平，DSSetL-低电平
+ */
 void DSout_set_HL(u8 DSnum, bool OutHL)
 {
     switch(DSnum)
@@ -480,6 +578,11 @@ void DSout_set_HL(u8 DSnum, bool OutHL)
     }
 }
 
+/**
+ * @brief  读取指定DS18B20总线的输入电平
+ * @param  DSnum 总线编号 (DSB1/DSB2)
+ * @retval 1-高电平，0-低电平
+ */
 bool DSIn_read(u8 DSnum)
 {
     bool Rbit = 0;
@@ -501,6 +604,12 @@ bool DSIn_read(u8 DSnum)
     return Rbit;
 }
 
+/**
+ * @brief  1-Wire复位脉冲，检测设备应答
+ * @param  DSnum 总线编号 (DSB1/DSB2)
+ * @retval 1 设备应答（存在），0 无应答
+ * @note   关闭中断保证时序精度，复位脉冲480us + 读取60us + 等待420us
+ */
 static uint8_t DS18B20_Reset(u8 DSnum)
 {
     uint8_t ack_flag = 0;
@@ -526,6 +635,12 @@ static uint8_t DS18B20_Reset(u8 DSnum)
     return ack_flag;
 }
 
+/**
+ * @brief  1-Wire写单个bit
+ * @param  DSnum 总线编号
+ * @param  bit  写入的位值 (0 或 1)
+ * @note   关闭中断保证时序精度，写1: 拉低2us后释放，写0: 拉低70us后释放
+ */
 static void DS18B20_WriteBit(u8 DSnum, uint8_t bit)
 {
     uint32_t primask;
@@ -548,6 +663,12 @@ static void DS18B20_WriteBit(u8 DSnum, uint8_t bit)
     __set_PRIMASK(primask);
 }
 
+/**
+ * @brief  1-Wire读单个bit
+ * @param  DSnum 总线编号
+ * @retval 读取的位值 (0 或 1)
+ * @note   关闭中断保证时序精度，拉低2us后释放，3us后采样
+ */
 static uint8_t DS18B20_ReadBit(u8 DSnum)
 {
     uint8_t bit = 0;
@@ -571,6 +692,11 @@ static uint8_t DS18B20_ReadBit(u8 DSnum)
     return bit;
 }
 
+/**
+ * @brief  1-Wire写一个字节（LSB优先）
+ * @param  DSnum 总线编号
+ * @param  byte 待写入的字节
+ */
 static void DS18B20_WriteByte(u8 DSnum, uint8_t byte)
 {
     uint8_t i;
@@ -580,6 +706,11 @@ static void DS18B20_WriteByte(u8 DSnum, uint8_t byte)
     }
 }
 
+/**
+ * @brief  1-Wire读一个字节（LSB优先）
+ * @param  DSnum 总线编号
+ * @retval 读取的字节
+ */
 static uint8_t DS18B20_ReadByte(u8 DSnum)
 {
     uint8_t i, byte = 0;
@@ -592,6 +723,13 @@ static uint8_t DS18B20_ReadByte(u8 DSnum)
     return byte;
 }
 
+/**
+ * @brief  读取单个设备的ROM编码
+ * @param  DSnum 总线编号
+ * @param  dev  设备结构体指针，用于存储ROM编码
+ * @retval 0 成功，1 失败（无应答或CRC校验错误）
+ * @note   仅适用于总线上只有一个设备的场景
+ */
 uint8_t DS18B20_ReadROMSingle(u8 DSnum, DS18B20_DeviceTypeDef *dev)
 {
     uint8_t romcode[8] = {0};
@@ -620,6 +758,13 @@ uint8_t DS18B20_ReadROMSingle(u8 DSnum, DS18B20_DeviceTypeDef *dev)
     return 0;
 }
 
+/**
+ * @brief  读取设备ROM（单设备模式）
+ * @param  DSnum 总线编号
+ * @param  dev_list 设备列表指针
+ * @retval 0 成功，1 失败
+ * @note   封装DS18B20_ReadROMSingle，成功后设置dev_cnt为1
+ */
 uint8_t DS18B20_ReadRom(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
 {
     if(DS18B20_ReadROMSingle(DSnum, &dev_list->devices[0]))
@@ -631,6 +776,14 @@ uint8_t DS18B20_ReadRom(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
     return 0;
 }
 
+/**
+ * @brief  搜索总线上的设备ROM（二叉树搜索算法）
+ * @param  DSnum 总线编号
+ * @param  addr  存储找到的ROM地址（8字节）
+ * @param  last_discrepancy 上次搜索的分歧点位置
+ * @retval 0 搜索完成，>0 下一次搜索的分歧点，1 CRC错误
+ * @note   实现1-Wire二叉树搜索协议，每次调用找到一个设备
+ */
 uint8_t DS18B20_SearchRom(u8 DSnum, uint8_t *addr, uint8_t last_discrepancy)
 {
     uint8_t id_bit_number = 1;
@@ -689,6 +842,13 @@ uint8_t DS18B20_SearchRom(u8 DSnum, uint8_t *addr, uint8_t last_discrepancy)
     return last_zero;
 }
 
+/**
+ * @brief  搜索总线上所有DS18B20设备
+ * @param  DSnum 总线编号
+ * @param  dev_list 设备列表指针，用于存储搜索结果
+ * @retval 找到的设备数量
+ * @note   使用二叉树搜索算法，最多搜索8个设备，仅识别家族码0x28的设备
+ */
 uint8_t DS18B20_SearchDevices(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
 {
     uint8_t last_discrepancy = 0;
@@ -713,6 +873,13 @@ uint8_t DS18B20_SearchDevices(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
     return dev_idx;
 }
 
+/**
+ * @brief  测量单个设备温度（阻塞方式）
+ * @param  DSnum 总线编号
+ * @param  dev  设备结构体指针
+ * @retval 0 成功，1 失败
+ * @note   匹配ROM后启动转换，等待750ms后读取暂存器并计算温度
+ */
 uint8_t DS18B20_MeasureSingle(u8 DSnum, DS18B20_DeviceTypeDef *dev)
 {
     uint8_t scratchpad[9] = {0};
@@ -764,6 +931,13 @@ uint8_t DS18B20_MeasureSingle(u8 DSnum, DS18B20_DeviceTypeDef *dev)
     return 0;
 }
 
+/**
+ * @brief  测量总线上所有设备温度（阻塞方式）
+ * @param  DSnum 总线编号
+ * @param  dev_list 设备列表指针
+ * @retval 0 成功，1 失败
+ * @note   跳过ROM广播启动转换，等待750ms后逐个匹配ROM读取暂存器
+ */
 uint8_t DS18B20_MeasureAll(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
 {
     uint8_t i;
@@ -818,6 +992,10 @@ uint8_t DS18B20_MeasureAll(u8 DSnum, DS18B20_MultiDeviceTypeDef *dev_list)
     return 0;
 }
 
+/**
+ * @brief  DS18B20 GPIO初始化
+ * @note   将所有使能的总线引脚配置为输入模式（1-Wire空闲状态）
+ */
 void DS18B20_gpio_Init(void)
 {
 #if DS_1
@@ -828,6 +1006,13 @@ void DS18B20_gpio_Init(void)
 #endif
 }
 
+/**
+ * @brief  设置DS18B20分辨率
+ * @param  DSnum 总线编号
+ * @param  resolution 分辨率配置值 (DS18B20_RES_9BIT ~ DS18B20_RES_12BIT)
+ * @retval 0 成功，1 失败（设备无应答）
+ * @note   写入暂存器TH/TL/配置字节后拷贝到EEPROM
+ */
 uint8_t DS18B20_SetResolution(u8 DSnum, uint8_t resolution)
 {
     if (!DS18B20_Reset(DSnum)) {
@@ -849,6 +1034,12 @@ uint8_t DS18B20_SetResolution(u8 DSnum, uint8_t resolution)
     return 0;
 }
 
+/**
+ * @brief  DS18B20初始化（搜索设备+设置分辨率）
+ * @param  dev_list 设备列表指针数组，按总线编号索引
+ * @retval 找到的设备总数
+ * @note   初始化GPIO、设置10位分辨率、搜索各总线设备并更新在线状态
+ */
 uint8_t DS18B20_Init(DS18B20_MultiDeviceTypeDef *dev_list[])
 {
     u8 DSbnum = 0;
@@ -887,6 +1078,12 @@ uint8_t DS18B20_Init(DS18B20_MultiDeviceTypeDef *dev_list[])
 static DS18B20_NB_State_t s_nb_state = DS_NB_IDLE;
 static uint32_t s_nb_start_tick = 0;
 
+/**
+ * @brief  非阻塞模式启动温度转换
+ * @param  dev_list 设备列表指针数组
+ * @retval 1 至少一条总线成功启动，0 全部失败
+ * @note   跳过ROM广播启动转换，不等待转换完成
+ */
 static uint8_t DS18B20_StartConvert(DS18B20_MultiDeviceTypeDef *dev_list[])
 {
     uint8_t any_started = 0;
@@ -918,6 +1115,11 @@ static uint8_t DS18B20_StartConvert(DS18B20_MultiDeviceTypeDef *dev_list[])
     return any_started;
 }
 
+/**
+ * @brief  非阻塞模式读取所有转换结果
+ * @param  dev_list 设备列表指针数组
+ * @note   逐总线复位后读取暂存器，CRC校验通过则更新温度值
+ */
 static void DS18B20_ReadAllResults(DS18B20_MultiDeviceTypeDef *dev_list[])
 {
     uint8_t i, j;
@@ -977,6 +1179,13 @@ static void DS18B20_ReadAllResults(DS18B20_MultiDeviceTypeDef *dev_list[])
     (void)i; (void)temp_raw; (void)scratchpad;
 }
 
+/**
+ * @brief  非阻塞温度采集状态机
+ * @param  dev_list 设备列表指针数组
+ * @retval 1 数据已更新（完成一次采集周期），0 未完成
+ * @note   状态流转：IDLE -> CONVERTING -> READ -> IDLE
+ *         CONVERTING状态通过g_scan_counter计时，达到DS18B20_CONVERT_TICKS后进入READ
+ */
 uint8_t DS18B20_NonBlockingProcess(DS18B20_MultiDeviceTypeDef *dev_list[])
 {
     uint8_t updated = 0;
@@ -1021,6 +1230,10 @@ uint8_t DS18B20_NonBlockingProcess(DS18B20_MultiDeviceTypeDef *dev_list[])
     return updated;
 }
 
+/**
+ * @brief  获取非阻塞状态机当前状态
+ * @retval 当前状态 (DS_NB_IDLE / DS_NB_CONVERTING / DS_NB_READ)
+ */
 DS18B20_NB_State_t DS18B20_GetNBState(void)
 {
     return s_nb_state;

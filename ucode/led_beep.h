@@ -91,8 +91,22 @@ void LED_Toggle(uint8_t led_id);
   */
 void LED_PowerIndicator_Set(uint8_t power_on);
 
+/**
+  * @brief  启动电源指示灯闪烁
+  * @note   激活闪烁标志并重置计时器, 在LED_Thread中周期翻转LED
+  */
 void LED_PowerIndicator_BlinkStart(void);
+
+/**
+  * @brief  停止电源指示灯闪烁
+  * @note   清除闪烁标志和计时器, 并恢复指示灯到当前电源状态
+  */
 void LED_PowerIndicator_BlinkStop(void);
+
+/**
+  * @brief  获取电源指示灯当前状态
+  * @return 1=电源打开, 0=电源关闭
+  */
 uint8_t LED_PowerIndicator_GetState(void);
 
 #endif

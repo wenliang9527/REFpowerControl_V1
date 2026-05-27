@@ -39,9 +39,13 @@ static u8 beep_current_count = 0;
 /** 蜂鸣器状态: 0=停止, 1=鸣响中, 2=间隔中 */
 static u8 beep_state = 0;
 
+/** 电源开启状态: 1=电源打开, 0=电源关闭 */
 static uint8_t s_power_on_state = 0;
+/** 电源指示灯闪烁激活标志: 1=闪烁中, 0=停止 */
 static uint8_t s_power_blink_active = 0;
+/** 电源指示灯闪烁计时器 (扫描周期数) */
 static u32 s_power_blink_timer = 0;
+/** 电源指示灯闪烁周期 (扫描周期数) */
 #define POWER_BLINK_PERIOD  5000u
 
 /**
@@ -249,12 +253,20 @@ void LED_PowerIndicator_Set(uint8_t power_on)
     s_power_on_state = power_on;
 }
 
+/**
+  * @brief  启动电源指示灯闪烁
+  * @note   激活闪烁标志并重置计时器, 在LED_Thread中周期翻转LED
+  */
 void LED_PowerIndicator_BlinkStart(void)
 {
     s_power_blink_active = 1;
     s_power_blink_timer = 0;
 }
 
+/**
+  * @brief  停止电源指示灯闪烁
+  * @note   清除闪烁标志和计时器, 并恢复指示灯到当前电源状态
+  */
 void LED_PowerIndicator_BlinkStop(void)
 {
     s_power_blink_active = 0;
@@ -262,6 +274,10 @@ void LED_PowerIndicator_BlinkStop(void)
     LED_PowerIndicator_Set(s_power_on_state);
 }
 
+/**
+  * @brief  获取电源指示灯当前状态
+  * @return 1=电源打开, 0=电源关闭
+  */
 uint8_t LED_PowerIndicator_GetState(void)
 {
     return s_power_on_state;

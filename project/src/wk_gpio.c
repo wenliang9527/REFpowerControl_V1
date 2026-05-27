@@ -51,7 +51,7 @@ void wk_gpio_config(void)
 
   /* gpio input config */
   gpio_init_struct.gpio_mode = GPIO_MODE_INPUT;
-  gpio_init_struct.gpio_pins = MCU_LIQUID_PIN | MCU_CLASH_PIN | TOUCH_1_PIN;
+  gpio_init_struct.gpio_pins = MCU_LIQUID_PIN | MCU_CLASH_PIN;
   gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
   gpio_init(GPIOA, &gpio_init_struct);
 
@@ -72,19 +72,23 @@ void wk_gpio_config(void)
 
   gpio_init_struct.gpio_mode = GPIO_MODE_INPUT;
   gpio_init_struct.gpio_pins = TOUCH_4_PIN | TOUCH_3_PIN | TOUCH_2_PIN;
-  gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
+  gpio_init_struct.gpio_pull = GPIO_PULL_UP;
   gpio_init(GPIOC, &gpio_init_struct);
 
-  /* gpio output config - set safe ODR values BEFORE switching to OUTPUT mode */
-  gpio_bits_set(GPIOC, LED2_PIN | LED3_PIN | LED4_PIN | SW_VALVE_2_PIN | SW_WPUMP_2_PIN | M_POWER_C_PIN);
-  gpio_bits_reset(GPIOC, BEEP_PIN | TZ_3_PLUS_PIN | TZ_3_DIR_PIN);
-  gpio_bits_set(GPIOA, LED5_PIN | SW_FAN_2_PIN | SW_FAN_1_PIN | SW_WPUMP_1_PIN);
-  gpio_bits_reset(GPIOA, TZ_1_PLUS_PIN | TZ_1_DIR_PIN | TZ_2_PLUS_PIN | TZ_2_DIR_PIN);
-  gpio_bits_set(GPIOB, LED_POWER_C_PIN | SW_REF_PIN | DTUBE_6_PIN | DTUBE_5_PIN | DTUBE_4_PIN | DTUBE_3_PIN);
-  gpio_bits_reset(GPIOB, TZ_4_PLUS_PIN | TZ_4_DIR_PIN);
-  gpio_bits_set(GPIOE, LED1_PIN);
-  gpio_bits_reset(GPIOE, MCU_SW1_PIN | MCU_SW2_PIN);
-  gpio_bits_set(GPIOD, DTUBE_2_PIN | DTUBE_1_PIN | SW_VALVE_1_PIN);
+  gpio_init_struct.gpio_mode = GPIO_MODE_INPUT;
+  gpio_init_struct.gpio_pins = TOUCH_1_PIN;
+  gpio_init_struct.gpio_pull = GPIO_PULL_UP;
+  gpio_init(TOUCH_1_GPIO_PORT, &gpio_init_struct);
+
+  /* gpio output config */
+  gpio_bits_reset(GPIOC, LED2_PIN | LED3_PIN | LED4_PIN | TZ_3_PLUS_PIN | TZ_3_DIR_PIN | 
+                  SW_VALVE_2_PIN | SW_WPUMP_2_PIN | M_POWER_C_PIN | BEEP_PIN);
+  gpio_bits_reset(GPIOA, LED5_PIN | TZ_1_PLUS_PIN | TZ_1_DIR_PIN | TZ_2_PLUS_PIN | TZ_2_DIR_PIN | 
+                  SW_FAN_2_PIN | SW_FAN_1_PIN | SW_WPUMP_1_PIN);
+  gpio_bits_reset(GPIOB, TZ_4_PLUS_PIN | TZ_4_DIR_PIN | LED_POWER_C_PIN | DTUBE_6_PIN | DTUBE_5_PIN | 
+                  DTUBE_4_PIN | DTUBE_3_PIN);
+  gpio_bits_reset(GPIOE, MCU_SW1_PIN | MCU_SW2_PIN | LED1_PIN);
+  gpio_bits_reset(GPIOD, DTUBE_2_PIN | DTUBE_1_PIN | SW_VALVE_1_PIN);
 
   gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_MODERATE;
   gpio_init_struct.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
@@ -105,8 +109,8 @@ void wk_gpio_config(void)
   gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_MODERATE;
   gpio_init_struct.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
   gpio_init_struct.gpio_mode = GPIO_MODE_OUTPUT;
-  gpio_init_struct.gpio_pins = TZ_4_PLUS_PIN | TZ_4_DIR_PIN | LED_POWER_C_PIN | SW_REF_PIN | DTUBE_6_PIN | 
-                               DTUBE_5_PIN | DTUBE_4_PIN | DTUBE_3_PIN;
+  gpio_init_struct.gpio_pins = TZ_4_PLUS_PIN | TZ_4_DIR_PIN | LED_POWER_C_PIN | DTUBE_6_PIN | DTUBE_5_PIN | 
+                               DTUBE_4_PIN | DTUBE_3_PIN;
   gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
   gpio_init(GPIOB, &gpio_init_struct);
 
@@ -125,6 +129,11 @@ void wk_gpio_config(void)
   gpio_init(GPIOD, &gpio_init_struct);
 
   /* add user code begin gpio_config 2 */
+  gpio_bits_set(GPIOC, LED2_PIN | LED3_PIN | LED4_PIN | SW_VALVE_2_PIN | SW_WPUMP_2_PIN | M_POWER_C_PIN);
+  gpio_bits_set(GPIOA, LED5_PIN | SW_FAN_2_PIN | SW_FAN_1_PIN | SW_WPUMP_1_PIN);
+  gpio_bits_set(GPIOB, LED_POWER_C_PIN);
+  gpio_bits_set(GPIOD, SW_VALVE_1_PIN);
+  gpio_bits_reset(GPIOC, BEEP_PIN);  /* ���������͹ر� */
   wk_delay_ms(1000);
   /* add user code end gpio_config 2 */
 }
